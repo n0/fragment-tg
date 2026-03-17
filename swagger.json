@@ -1,0 +1,1932 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fragment.com API",
+    "version": "1.0.0",
+    "description": "## API Architecture\n\nFragment.com is Telegram's official marketplace for usernames, phone numbers, collectibles, Telegram Stars, Telegram Premium subscriptions, and advertising credits. It operates on the TON (The Open Network) blockchain.\n\n**Single RPC-style endpoint**: All API calls are `POST https://fragment.com/api?hash={dynamic_hash}` with a `method` field in the form-encoded POST body. The `hash` parameter is a dynamic CSRF-like token extracted from the homepage HTML.\n\n**Base URL**: `https://fragment.com`\n\n**Content-Type**: Requests use `application/x-www-form-urlencoded`. Responses are `application/json`.\n\n## Authentication\n\n**Cookie-based authentication** using four cookies:\n- `stel_dt` — Device/timezone offset\n- `stel_ssid` — Session ID\n- `stel_token` — Authentication token\n- `stel_ton_token` — TON wallet session token\n\n**Required headers**:\n- `X-Requested-With: XMLHttpRequest`\n- `X-Aj-Referer: https://fragment.com/` (AJAX referer, set to the current page URL)\n\n**Dynamic hash**: Before making API calls, fetch `GET https://fragment.com/` and extract the hash from the HTML using regex: `\"apiUrl\":\"\\\\/api\\\\?hash=([a-f0-9]+)\"`\n\n## Payment Flow (TON Blockchain)\n\nAll purchases follow a two-step pattern:\n1. **Init request** (`init*Request` method) — Returns a `req_id` identifying the payment\n2. **Get payment link** (`get*Link` method) — Returns TON transaction data for the wallet\n3. **Payment execution** — User signs the transaction via TonConnect v2 wallet or scans a QR code\n4. **Confirmation polling** — The server polls for transaction confirmation on the blockchain\n\nThe `get*Link` methods return transaction data compatible with TonConnect's `sendTransaction` format, containing the destination wallet address, amount in nanoTON, and a payload.\n\n## E2E Flow: Buy Telegram Stars\n1. `POST /api` method=`updateStarsBuyState` — Initialize the Stars purchase page state\n2. `POST /api` method=`updateStarsPrices` — Get current pricing for desired star count\n3. `POST /api` method=`searchStarsRecipient` — Search for the recipient by Telegram username\n4. `POST /api` method=`initBuyStarsRequest` — Create the purchase request, returns `req_id`\n5. `POST /api` method=`getBuyStarsLink` — Get TON transaction data for payment\n6. Sign and send the TON transaction via TonConnect wallet\n7. `POST /api` method=`repeatStars` — Repeat the last Stars purchase\n\n## E2E Flow: Gift Telegram Premium\n1. `POST /api` method=`updatePremiumState` — Initialize the Premium gift page state\n2. `POST /api` method=`searchPremiumGiftRecipient` — Search for recipient by username, returns `recipient` ID\n3. `POST /api` method=`initGiftPremiumRequest` — Create gift request with recipient ID and months, returns `req_id`\n4. `POST /api` method=`getGiftPremiumLink` — Get TON transaction data\n5. Sign and send TON transaction\n\n## E2E Flow: Premium Giveaway\n1. `POST /api` method=`updatePremiumGiveawayState` — Initialize giveaway page\n2. `POST /api` method=`updatePremiumGiveawayPrices` — Get pricing for quantity\n3. `POST /api` method=`searchPremiumGiveawayRecipient` — Search for recipient channel/group\n4. `POST /api` method=`initGiveawayPremiumRequest` — Create giveaway request\n5. `POST /api` method=`getGiveawayPremiumLink` — Get TON transaction data\n\n## E2E Flow: Stars Giveaway\n1. `POST /api` method=`updateStarsGiveawayState` — Initialize stars giveaway page\n2. `POST /api` method=`updateStarsGiveawayPrices` — Get pricing for quantity and star count\n3. `POST /api` method=`searchStarsGiveawayRecipient` — Search for recipient\n4. `POST /api` method=`initGiveawayStarsRequest` — Create stars giveaway request\n5. `POST /api` method=`getGiveawayStarsLink` — Get TON transaction data\n\n## E2E Flow: Ads Top-up (Send Funds)\n1. `POST /api` method=`updateAdsTopupState` — Initialize ads top-up page\n2. `POST /api` method=`searchAdsTopupRecipient` — Search for the ads account recipient\n3. `POST /api` method=`initAdsTopupRequest` — Create top-up request with recipient and amount\n4. `POST /api` method=`getAdsTopupLink` — Get TON transaction data\n\n## E2E Flow: Ads Add Funds (Recharge Own Account)\n1. `POST /api` method=`updateAdsState` — Initialize ads page\n2. `POST /api` method=`initAdsRechargeRequest` — Create recharge request with account and amount\n3. `POST /api` method=`getAdsRechargeLink` — Get TON transaction data\n\n## E2E Flow: Convert Username to Collectible/NFT\n1. `POST /api` method=`initConverting` — Start converting a username to NFT, returns `req_id` and state\n2. `POST /api` method=`checkConverting` — Poll conversion status\n3. `POST /api` method=`startConverting` — Finalize conversion with bid/transaction data\n4. (Optional) `POST /api` method=`revertConverting` — Cancel/revert the conversion\n\n## E2E Flow: Mint Collectable / Place Bid\n1. `GET /username/{name}` — Navigate to the collectable page\n2. `POST /api` method=`updateAuction` — Get current auction state\n3. `POST /api` method=`getBidLink` — Place a bid, returns TON transaction data\n4. Sign and send TON transaction\n\n## E2E Flow: NFT Transfer\n1. `POST /api` method=`updateNftTransferState` — Initialize NFT transfer page\n2. `POST /api` method=`searchNftTransferRecipient` — Search for recipient\n3. `POST /api` method=`initNftTransferRequest` — Create transfer request\n4. `POST /api` method=`getNftTransferLink` — Get TON transaction data\n\n## E2E Flow: NFT Withdrawal (to external wallet)\n1. `POST /api` method=`updateNftWithdrawalState` — Initialize withdrawal page\n2. `POST /api` method=`initNftWithdrawalRequest` — Create withdrawal with wallet address\n\n## Response Format\n\nAPI responses are JSON with common fields:\n- `ok` (boolean) — Whether the request succeeded\n- `error` (string) — Error message if failed\n- `html` (string) — HTML content to render in the page\n- `h` (string) — Full page HTML for navigation responses\n- `t` (string) — Page title\n- `s` (string) — Page state identifier\n- `j` (string) — JavaScript to evaluate\n- `r` (string) — Redirect URL\n- `req_id` (string) — Payment request ID (from init methods)\n- `amount` (string) — Payment amount description\n- `content` (string) — Content/description HTML\n- `button` (string) — Button label text\n- `item_title` (string) — Title of the item being purchased\n\n## Key Differences: Top-up vs Recharge (Ads)\n| Aspect | Top-up (Gift) | Recharge (Self) |\n|--------|---------------|------------------|\n| Method prefix | `AdsTopup` | `AdsRecharge` |\n| Recipient | Another user's ads account | Your own ads account |\n| Search | `searchAdsTopupRecipient` | Not needed |\n| Show sender | Yes (optional) | No |\n\n## Supported Item Types (for auction/asset methods)\n- Usernames (`type` parameter values seen in code)\n- Phone numbers\n- Collectibles/NFTs\n"
+  },
+  "servers": [
+    {
+      "url": "https://fragment.com",
+      "description": "Fragment.com production server"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Authentication, login, logout, and session management." },
+    { "name": "Wallet", "description": "TON wallet connection, verification, and TonConnect authentication." },
+    { "name": "Hash", "description": "Dynamic API hash extraction required for all API calls." },
+    { "name": "Search", "description": "Search and browse auctions, assets, and marketplace listings." },
+    { "name": "Auction", "description": "Auction management: bidding, selling, subscribing, and auction lifecycle." },
+    { "name": "Assets", "description": "User's owned assets: listing, assignment, and bot username management." },
+    { "name": "Stars", "description": "Purchase Telegram Stars for yourself or as a gift." },
+    { "name": "StarsGiveaway", "description": "Create Stars giveaways for channels/groups." },
+    { "name": "StarsRevenue", "description": "Stars revenue withdrawal for bot/channel owners." },
+    { "name": "Premium", "description": "Gift Telegram Premium subscriptions." },
+    { "name": "PremiumGiveaway", "description": "Create Telegram Premium giveaways for channels/groups." },
+    { "name": "Ads", "description": "Telegram Ads platform: top-ups, recharges, and revenue withdrawal." },
+    { "name": "Gateway", "description": "Gateway API credits recharge." },
+    { "name": "NFT", "description": "Convert usernames to collectibles/NFTs, transfer, and withdraw NFTs." },
+    { "name": "Random", "description": "Random number generation (lottery/provably fair)." },
+    { "name": "LoginCodes", "description": "Manage Telegram login code forwarding to Fragment." },
+    { "name": "KYC", "description": "Know Your Customer verification via SumSub." },
+    { "name": "Sessions", "description": "TON wallet session management." },
+    { "name": "History", "description": "View bids, premium, orders, and ownership history." },
+    { "name": "Payment", "description": "TON payment transaction data retrieval (Tonkeeper deep-link format)." }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "getHomepage",
+        "summary": "Load homepage and extract API hash",
+        "description": "Fetches the Fragment.com homepage HTML. The response contains a dynamic API hash embedded in a script tag, which must be extracted using the regex pattern `\"apiUrl\":\"\\\\/api\\\\?hash=([a-f0-9]+)\"`. This hash is required as a query parameter for all subsequent API calls.\n\nThe hash changes periodically and must be refreshed when API calls return 'Access denied' errors.",
+        "tags": ["Hash"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "HTML page containing the embedded API hash in a script tag.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "...\"apiUrl\":\"\\/api?hash=a1b2c3d4e5f6\"..."
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api": {
+      "post": {
+        "operationId": "apiRequest",
+        "summary": "Universal RPC API endpoint",
+        "description": "All Fragment API operations use this single endpoint. The `method` field in the POST body determines which operation to perform. The `hash` query parameter is required for CSRF protection.\n\nRequest body is `application/x-www-form-urlencoded` with `method` as a required field plus method-specific parameters.\n\nSee individual operation descriptions for method-specific parameters and responses.",
+        "tags": ["Auth", "Search", "Auction", "Stars", "Premium", "Ads", "NFT"],
+        "parameters": [
+          {
+            "name": "hash",
+            "in": "query",
+            "required": true,
+            "description": "Dynamic API hash extracted from the homepage HTML. Changes periodically.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]+$",
+              "example": "a1b2c3d4e5f6789a"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/LogInRequest" },
+                  { "$ref": "#/components/schemas/LogOutRequest" },
+                  { "$ref": "#/components/schemas/SearchAuctionsRequest" },
+                  { "$ref": "#/components/schemas/UpdateAuctionRequest" },
+                  { "$ref": "#/components/schemas/GetBidLinkRequest" },
+                  { "$ref": "#/components/schemas/InitOfferRequest" },
+                  { "$ref": "#/components/schemas/GetOfferLinkRequest" },
+                  { "$ref": "#/components/schemas/SubscribeRequest" },
+                  { "$ref": "#/components/schemas/UnsubscribeRequest" },
+                  { "$ref": "#/components/schemas/CanSellItemRequest" },
+                  { "$ref": "#/components/schemas/GetStartAuctionLinkRequest" },
+                  { "$ref": "#/components/schemas/GetCancelAuctionLinkRequest" },
+                  { "$ref": "#/components/schemas/GetAssetsListRequest" },
+                  { "$ref": "#/components/schemas/AssignToTgAccountRequest" },
+                  { "$ref": "#/components/schemas/GetBotUsernameLinkRequest" },
+                  { "$ref": "#/components/schemas/InitConvertingRequest" },
+                  { "$ref": "#/components/schemas/RevertConvertingRequest" },
+                  { "$ref": "#/components/schemas/CheckConvertingRequest" },
+                  { "$ref": "#/components/schemas/StartConvertingRequest" },
+                  { "$ref": "#/components/schemas/InitNftMoveRequest" },
+                  { "$ref": "#/components/schemas/CheckNftMovingRequest" },
+                  { "$ref": "#/components/schemas/UpdateStarsBuyStateRequest" },
+                  { "$ref": "#/components/schemas/UpdateStarsPricesRequest" },
+                  { "$ref": "#/components/schemas/SearchStarsRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitBuyStarsRequest" },
+                  { "$ref": "#/components/schemas/GetBuyStarsLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatStarsRequest" },
+                  { "$ref": "#/components/schemas/UpdateStarsGiveawayStateRequest" },
+                  { "$ref": "#/components/schemas/UpdateStarsGiveawayPricesRequest" },
+                  { "$ref": "#/components/schemas/SearchStarsGiveawayRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitGiveawayStarsRequest" },
+                  { "$ref": "#/components/schemas/GetGiveawayStarsLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatStarsGiveawayRequest" },
+                  { "$ref": "#/components/schemas/UpdatePremiumStateRequest" },
+                  { "$ref": "#/components/schemas/SearchPremiumGiftRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitGiftPremiumRequest" },
+                  { "$ref": "#/components/schemas/GetGiftPremiumLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatPremiumRequest" },
+                  { "$ref": "#/components/schemas/UpdatePremiumGiveawayStateRequest" },
+                  { "$ref": "#/components/schemas/UpdatePremiumGiveawayPricesRequest" },
+                  { "$ref": "#/components/schemas/SearchPremiumGiveawayRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitGiveawayPremiumRequest" },
+                  { "$ref": "#/components/schemas/GetGiveawayPremiumLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatPremiumGiveawayRequest" },
+                  { "$ref": "#/components/schemas/UpdateAdsStateRequest" },
+                  { "$ref": "#/components/schemas/UpdateAdsTopupStateRequest" },
+                  { "$ref": "#/components/schemas/SearchAdsTopupRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitAdsTopupRequest" },
+                  { "$ref": "#/components/schemas/GetAdsTopupLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatAdsTopupRequest" },
+                  { "$ref": "#/components/schemas/InitAdsRechargeRequest" },
+                  { "$ref": "#/components/schemas/GetAdsRechargeLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatAdsAddFundsRequest" },
+                  { "$ref": "#/components/schemas/InitAdsRevenueWithdrawalRequest" },
+                  { "$ref": "#/components/schemas/UpdateAdsRevenueWithdrawalStateRequest" },
+                  { "$ref": "#/components/schemas/UpdateGatewayRechargeStateRequest" },
+                  { "$ref": "#/components/schemas/UpdateGatewayPricesRequest" },
+                  { "$ref": "#/components/schemas/InitGatewayRechargeRequest" },
+                  { "$ref": "#/components/schemas/GetGatewayRechargeLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatGatewayAddFundsRequest" },
+                  { "$ref": "#/components/schemas/UpdateNftTransferStateRequest" },
+                  { "$ref": "#/components/schemas/SearchNftTransferRecipientRequest" },
+                  { "$ref": "#/components/schemas/InitNftTransferRequest" },
+                  { "$ref": "#/components/schemas/GetNftTransferLinkRequest" },
+                  { "$ref": "#/components/schemas/UpdateNftWithdrawalStateRequest" },
+                  { "$ref": "#/components/schemas/InitNftWithdrawalRequest" },
+                  { "$ref": "#/components/schemas/UpdateRandomRequest" },
+                  { "$ref": "#/components/schemas/GetRandomNumberLinkRequest" },
+                  { "$ref": "#/components/schemas/RepeatRandomRequest" },
+                  { "$ref": "#/components/schemas/UpdateLoginCodesRequest" },
+                  { "$ref": "#/components/schemas/ToggleLoginCodesRequest" },
+                  { "$ref": "#/components/schemas/TerminatePhoneSessionsRequest" },
+                  { "$ref": "#/components/schemas/UpdateStarsRevenueWithdrawalStateRequest" },
+                  { "$ref": "#/components/schemas/InitStarsRevenueWithdrawalRequest" },
+                  { "$ref": "#/components/schemas/GetTonAuthLinkRequest" },
+                  { "$ref": "#/components/schemas/CheckTonProofAuthRequest" },
+                  { "$ref": "#/components/schemas/TonLogOutRequest" },
+                  { "$ref": "#/components/schemas/VerifyWalletRequest" },
+                  { "$ref": "#/components/schemas/KycGetTokenRequest" },
+                  { "$ref": "#/components/schemas/KycUpdateStatusRequest" },
+                  { "$ref": "#/components/schemas/CheckWalletRequest" },
+                  { "$ref": "#/components/schemas/LinkWalletRequest" },
+                  { "$ref": "#/components/schemas/TonTerminateSessionRequest" },
+                  { "$ref": "#/components/schemas/GetBidsHistoryRequest" },
+                  { "$ref": "#/components/schemas/GetPremiumHistoryRequest" },
+                  { "$ref": "#/components/schemas/GetOrdersHistoryRequest" },
+                  { "$ref": "#/components/schemas/GetOwnersHistoryRequest" }
+                ],
+                "discriminator": {
+                  "propertyName": "method"
+                }
+              },
+              "examples": {
+                "searchPremiumGiftRecipient": {
+                  "summary": "Search for a Premium gift recipient",
+                  "value": {
+                    "method": "searchPremiumGiftRecipient",
+                    "query": "durov",
+                    "months": "3"
+                  }
+                },
+                "initBuyStarsRequest": {
+                  "summary": "Create a Stars purchase request",
+                  "value": {
+                    "method": "initBuyStarsRequest",
+                    "recipient": "abc123recipient",
+                    "quantity": "100"
+                  }
+                },
+                "searchAuctions": {
+                  "summary": "Search for auctions",
+                  "value": {
+                    "method": "searchAuctions",
+                    "query": "premium",
+                    "type": "usernames"
+                  }
+                },
+                "initAdsTopupRequest": {
+                  "summary": "Create an ads top-up request",
+                  "value": {
+                    "method": "initAdsTopupRequest",
+                    "recipient": "ads_account_id",
+                    "amount": "100"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful API response. The shape varies by method — see individual request schema descriptions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required. Cookies are invalid or expired. The client should redirect to `/auth`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { "cookieAuth": [] }
+        ]
+      }
+    },
+    "/tonkeeper/rawRequest": {
+      "get": {
+        "operationId": "getTonkeeperRawRequest",
+        "summary": "Get TON payment transaction data",
+        "description": "Retrieves the raw TON transaction data for a payment request. Returns the transaction body that can be used with Tonkeeper or other TON wallets to execute the payment.\n\nThis is an alternative to the TonConnect flow — instead of using `sendTransaction`, you can get the raw transaction data and construct the payment manually.",
+        "tags": ["Payment"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "The payment request ID returned by an `init*Request` method.",
+            "schema": {
+              "type": "string",
+              "example": "req_abc123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw TON transaction data for the payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TonkeeperRawRequestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { "cookieAuth": [] }
+        ]
+      }
+    },
+    "/my/sessions": {
+      "get": {
+        "operationId": "getMySessions",
+        "summary": "Check session validity",
+        "description": "Returns the user's active sessions. Can be used to verify that the current authentication cookies are valid. A valid session returns a response with the `t` field set (page title).",
+        "tags": ["Auth"],
+        "parameters": [
+          {
+            "name": "hash",
+            "in": "query",
+            "required": true,
+            "description": "Dynamic API hash.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session information. Presence of `t` field indicates valid session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { "cookieAuth": [] }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "stel_token",
+        "description": "Fragment.com uses cookie-based authentication with four cookies: `stel_dt` (timezone offset), `stel_ssid` (session ID), `stel_token` (auth token), `stel_ton_token` (TON wallet token). All four must be sent together. Obtain these by logging into fragment.com in a browser and extracting the cookies."
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "description": "Generic API response. Fields present depend on the method called.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "description": "Whether the request was successful."
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if the request failed.",
+            "example": "Access denied"
+          },
+          "html": {
+            "type": "string",
+            "description": "HTML content to render (partial page update)."
+          },
+          "h": {
+            "type": "string",
+            "description": "Full page HTML for navigation responses."
+          },
+          "t": {
+            "type": "string",
+            "description": "Page title."
+          },
+          "s": {
+            "type": "string",
+            "description": "Page state identifier."
+          },
+          "j": {
+            "type": "string",
+            "description": "JavaScript code to evaluate on the client."
+          },
+          "r": {
+            "type": "string",
+            "description": "Redirect URL."
+          },
+          "l": {
+            "type": "string",
+            "description": "Layer/modal HTML content."
+          },
+          "lt": {
+            "type": "string",
+            "description": "Layer/modal title."
+          },
+          "ls": {
+            "type": "string",
+            "description": "Layer/modal state."
+          },
+          "v": {
+            "type": "string",
+            "description": "Client version. If different from current, triggers page reload."
+          },
+          "rc": {
+            "type": "string",
+            "description": "Root CSS class to apply."
+          },
+          "req_id": {
+            "type": "string",
+            "description": "Payment request ID (returned by init*Request methods)."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Payment amount description."
+          },
+          "content": {
+            "type": "string",
+            "description": "Content/description HTML for payment popups."
+          },
+          "button": {
+            "type": "string",
+            "description": "Button label text for payment confirmation."
+          },
+          "item_title": {
+            "type": "string",
+            "description": "Title of the item being purchased."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Error response returned when a request fails.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message.",
+            "example": "Access denied"
+          }
+        },
+        "required": ["error"]
+      },
+      "SearchRecipientResponse": {
+        "type": "object",
+        "description": "Response from recipient search methods (searchPremiumGiftRecipient, searchStarsRecipient, etc.).",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "found": {
+            "type": "object",
+            "description": "Found recipient details.",
+            "properties": {
+              "recipient": {
+                "type": "string",
+                "description": "Unique recipient ID to use in init*Request calls.",
+                "example": "user_abc123"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name of the recipient.",
+                "example": "Pavel Durov"
+              },
+              "photo": {
+                "type": "string",
+                "description": "URL to the recipient's profile photo.",
+                "example": "https://fragment.com/photos/user123.jpg"
+              }
+            },
+            "required": ["recipient"]
+          }
+        },
+        "required": ["ok"]
+      },
+      "InitRequestResponse": {
+        "type": "object",
+        "description": "Response from init*Request methods. Contains the payment request ID and display information.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "req_id": {
+            "type": "string",
+            "description": "Unique payment request identifier. Pass this to the corresponding get*Link method.",
+            "example": "req_1234567890"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Human-readable payment amount.",
+            "example": "5.00 TON"
+          },
+          "content": {
+            "type": "string",
+            "description": "HTML content describing the payment."
+          },
+          "button": {
+            "type": "string",
+            "description": "Label for the payment confirmation button.",
+            "example": "Pay 5.00 TON"
+          },
+          "item_title": {
+            "type": "string",
+            "description": "Title of the item being purchased.",
+            "example": "100 Telegram Stars"
+          },
+          "myself": {
+            "type": "boolean",
+            "description": "Whether the purchase is for the authenticated user themselves (Stars)."
+          },
+          "to_bot": {
+            "type": "boolean",
+            "description": "Whether the purchase is directed to a bot (Stars)."
+          }
+        },
+        "required": ["req_id"]
+      },
+      "UpdatePricesResponse": {
+        "type": "object",
+        "description": "Response from updatePrices methods. Contains pricing information.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "cur_price": {
+            "type": "string",
+            "description": "Current price in TON.",
+            "example": "5.00"
+          },
+          "options_html": {
+            "type": "string",
+            "description": "HTML for quantity/pricing option selectors."
+          },
+          "boosts": {
+            "type": "string",
+            "description": "Number of boosts included (for giveaways)."
+          },
+          "button_label": {
+            "type": "string",
+            "description": "Updated button label with price."
+          },
+          "per_user": {
+            "type": "string",
+            "description": "Price per user (for giveaways)."
+          },
+          "placeholder": {
+            "type": "string",
+            "description": "Placeholder text for input fields."
+          }
+        }
+      },
+      "TonkeeperRawRequestResponse": {
+        "type": "object",
+        "description": "Raw TON transaction data in Tonkeeper deeplink format.",
+        "properties": {
+          "body": {
+            "type": "object",
+            "description": "Transaction body containing the TON transfer parameters.",
+            "properties": {
+              "address": {
+                "type": "string",
+                "description": "Destination TON wallet address.",
+                "example": "EQD..."
+              },
+              "amount": {
+                "type": "string",
+                "description": "Amount in nanoTON.",
+                "example": "5000000000"
+              },
+              "payload": {
+                "type": "string",
+                "description": "Base64-encoded transaction payload (BOC cell).",
+                "example": "te6cck..."
+              }
+            }
+          }
+        }
+      },
+      "TonConnectTransactionResponse": {
+        "type": "object",
+        "description": "TON transaction data returned by get*Link methods for TonConnect v2 sendTransaction.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "transaction": {
+            "type": "object",
+            "description": "TonConnect-compatible transaction object.",
+            "properties": {
+              "validUntil": {
+                "type": "integer",
+                "description": "Unix timestamp until which the transaction is valid.",
+                "format": "int64"
+              },
+              "messages": {
+                "type": "array",
+                "description": "Array of TON messages to send.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string",
+                      "description": "Destination address."
+                    },
+                    "amount": {
+                      "type": "string",
+                      "description": "Amount in nanoTON."
+                    },
+                    "payload": {
+                      "type": "string",
+                      "description": "Base64-encoded BOC payload."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "tonkeeper_link": {
+            "type": "string",
+            "description": "Tonkeeper deeplink URL for direct wallet opening."
+          },
+          "qr_link": {
+            "type": "string",
+            "description": "URL to encode as QR code for wallet scanning."
+          }
+        }
+      },
+      "SessionsResponse": {
+        "type": "object",
+        "description": "Session validity check response.",
+        "properties": {
+          "t": {
+            "type": "string",
+            "description": "Page title. Presence indicates valid session."
+          },
+          "h": {
+            "type": "string",
+            "description": "HTML content of the sessions page."
+          }
+        }
+      },
+      "ConvertingResponse": {
+        "type": "object",
+        "description": "Response from initConverting and checkConverting methods.",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "description": "Current state of the conversion process.",
+            "enum": ["pending", "processing", "done", "failed"]
+          },
+          "req_id": {
+            "type": "string",
+            "description": "Conversion request ID."
+          }
+        }
+      },
+
+      "LogInRequest": {
+        "type": "object",
+        "description": "Log in via Telegram authentication widget. The `auth` parameter is a base64-encoded JSON string containing user data from Telegram's login widget.",
+        "properties": {
+          "method": { "type": "string", "enum": ["logIn"] },
+          "auth": {
+            "type": "string",
+            "description": "Base64-encoded Telegram auth data (contains id, first_name, username, photo_url, auth_date, hash).",
+            "example": "eyJpZCI6MTIzNDU2Nzg5LC..."
+          }
+        },
+        "required": ["method", "auth"]
+      },
+      "LogOutRequest": {
+        "type": "object",
+        "description": "Log out of Fragment.com. Clears the session cookies.",
+        "properties": {
+          "method": { "type": "string", "enum": ["logOut"] }
+        },
+        "required": ["method"]
+      },
+      "GetTonAuthLinkRequest": {
+        "type": "object",
+        "description": "Get a TON wallet authentication link for TonConnect login.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getTonAuthLink"] }
+        },
+        "required": ["method"]
+      },
+      "CheckTonProofAuthRequest": {
+        "type": "object",
+        "description": "Verify TON wallet proof-of-ownership for authentication.",
+        "properties": {
+          "method": { "type": "string", "enum": ["checkTonProofAuth"] },
+          "account": {
+            "type": "string",
+            "description": "JSON-encoded TonConnect account object containing address and other wallet info."
+          },
+          "device": {
+            "type": "string",
+            "description": "JSON-encoded device information from TonConnect."
+          },
+          "proof": {
+            "type": "string",
+            "description": "JSON-encoded TonConnect proof object containing the cryptographic proof of wallet ownership."
+          }
+        },
+        "required": ["method", "account", "device", "proof"]
+      },
+      "TonLogOutRequest": {
+        "type": "object",
+        "description": "Disconnect the TON wallet from the Fragment account.",
+        "properties": {
+          "method": { "type": "string", "enum": ["tonLogOut"] }
+        },
+        "required": ["method"]
+      },
+
+      "SearchAuctionsRequest": {
+        "type": "object",
+        "description": "Search for auctions/listings on Fragment marketplace. Supports filtering by type and pagination.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchAuctions"] },
+          "query": {
+            "type": "string",
+            "description": "Search query text.",
+            "example": "premium"
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of items to search for.",
+            "enum": ["usernames", "numbers", "collectibles"]
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID from previous results."
+          }
+        },
+        "required": ["method"]
+      },
+      "UpdateAuctionRequest": {
+        "type": "object",
+        "description": "Get or refresh the current state of a specific auction. Used to poll for bid updates and auction status changes.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateAuction"] },
+          "type": {
+            "type": "string",
+            "description": "Item type.",
+            "example": "username"
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item identifier being auctioned.",
+            "example": "durov"
+          },
+          "lt": {
+            "type": "string",
+            "description": "Last update timestamp for long-polling."
+          },
+          "lv": {
+            "type": "string",
+            "description": "Last version for long-polling."
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+      "GetBidLinkRequest": {
+        "type": "object",
+        "description": "Place a bid on an auction item. Returns TON transaction data to execute via TonConnect wallet. The bid amount is in TON.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getBidLink"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to bid on."
+          },
+          "bid": {
+            "type": "string",
+            "description": "Bid amount in TON.",
+            "example": "10.5"
+          }
+        },
+        "required": ["method", "type", "username", "bid"]
+      },
+      "InitOfferRequest": {
+        "type": "object",
+        "description": "Initialize a direct offer/purchase for a fixed-price item. Returns a req_id and minimum fee information.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initOfferRequest"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to make an offer on."
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+      "GetOfferLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a direct offer. Uses the req_id from initOfferRequest.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getOfferLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initOfferRequest."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Offer amount in TON."
+          }
+        },
+        "required": ["method", "id", "amount"]
+      },
+      "SubscribeRequest": {
+        "type": "object",
+        "description": "Subscribe to notifications for an auction item (e.g., outbid alerts).",
+        "properties": {
+          "method": { "type": "string", "enum": ["subscribe"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to subscribe to."
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+      "UnsubscribeRequest": {
+        "type": "object",
+        "description": "Unsubscribe from notifications for an auction item.",
+        "properties": {
+          "method": { "type": "string", "enum": ["unsubscribe"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to unsubscribe from."
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+      "CanSellItemRequest": {
+        "type": "object",
+        "description": "Check if a user can sell/auction a specific item. Returns eligibility information.",
+        "properties": {
+          "method": { "type": "string", "enum": ["canSellItem"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to check."
+          },
+          "auction": {
+            "type": "integer",
+            "description": "Whether to check auction eligibility (1) or fixed price (0).",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+      "GetStartAuctionLinkRequest": {
+        "type": "object",
+        "description": "Start an auction for an owned item. Returns TON transaction data to initiate the auction on-chain.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getStartAuctionLink"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item to auction."
+          },
+          "min_amount": {
+            "type": "string",
+            "description": "Minimum bid amount in TON.",
+            "example": "5"
+          },
+          "max_amount": {
+            "type": "string",
+            "description": "Buy-now price in TON (optional).",
+            "example": "100"
+          }
+        },
+        "required": ["method", "type", "username", "min_amount"]
+      },
+      "GetCancelAuctionLinkRequest": {
+        "type": "object",
+        "description": "Cancel an active auction. Returns TON transaction data to cancel the auction on-chain.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getCancelAuctionLink"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username/item whose auction to cancel."
+          }
+        },
+        "required": ["method", "type", "username"]
+      },
+
+      "GetAssetsListRequest": {
+        "type": "object",
+        "description": "List the authenticated user's owned assets with pagination.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getAssetsList"] },
+          "type": {
+            "type": "string",
+            "description": "Filter by asset type.",
+            "enum": ["usernames", "numbers", "collectibles"]
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID."
+          }
+        },
+        "required": ["method"]
+      },
+      "AssignToTgAccountRequest": {
+        "type": "object",
+        "description": "Assign an owned username to a Telegram account, channel, or bot.",
+        "properties": {
+          "method": { "type": "string", "enum": ["assignToTgAccount"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "username": {
+            "type": "string",
+            "description": "The username to assign."
+          },
+          "assign_to": {
+            "type": "string",
+            "description": "Target Telegram entity to assign the username to."
+          }
+        },
+        "required": ["method", "type", "username", "assign_to"]
+      },
+      "GetBotUsernameLinkRequest": {
+        "type": "object",
+        "description": "Get a link for assigning a username to a bot via BotFather.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getBotUsernameLink"] },
+          "id": {
+            "type": "string",
+            "description": "Assignment request ID."
+          }
+        },
+        "required": ["method", "id"]
+      },
+
+      "InitConvertingRequest": {
+        "type": "object",
+        "description": "Start converting a username to an NFT collectible. Returns the conversion state and request ID.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initConverting"] },
+          "username": {
+            "type": "string",
+            "description": "The username to convert to NFT.",
+            "example": "jamllc"
+          }
+        },
+        "required": ["method", "username"]
+      },
+      "RevertConvertingRequest": {
+        "type": "object",
+        "description": "Revert/cancel an NFT conversion. Returns the username to its non-NFT state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["revertConverting"] },
+          "username": {
+            "type": "string",
+            "description": "The username whose conversion to revert."
+          },
+          "confirmed": {
+            "type": "integer",
+            "description": "Confirmation flag. Set to 1 to confirm the revert.",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "username"]
+      },
+      "CheckConvertingRequest": {
+        "type": "object",
+        "description": "Check the status of an ongoing NFT conversion. Poll this until the conversion is complete.",
+        "properties": {
+          "method": { "type": "string", "enum": ["checkConverting"] },
+          "id": {
+            "type": "string",
+            "description": "Conversion request ID from initConverting."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "StartConvertingRequest": {
+        "type": "object",
+        "description": "Finalize an NFT conversion with bid/transaction data from the TON blockchain.",
+        "properties": {
+          "method": { "type": "string", "enum": ["startConverting"] },
+          "id": {
+            "type": "string",
+            "description": "Conversion request ID."
+          },
+          "bid": {
+            "type": "string",
+            "description": "Bid amount for the conversion."
+          },
+          "transaction": {
+            "type": "string",
+            "description": "TON transaction hash confirming the conversion."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "InitNftMoveRequest": {
+        "type": "object",
+        "description": "Initialize moving an NFT to a different address/owner.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initNftMoveRequest"] },
+          "username": {
+            "type": "string",
+            "description": "The NFT username to move."
+          }
+        },
+        "required": ["method", "username"]
+      },
+      "CheckNftMovingRequest": {
+        "type": "object",
+        "description": "Check the status of an NFT move operation.",
+        "properties": {
+          "method": { "type": "string", "enum": ["checkNftMoving"] },
+          "id": {
+            "type": "string",
+            "description": "NFT move request ID."
+          }
+        },
+        "required": ["method", "id"]
+      },
+
+      "UpdateStarsBuyStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Stars purchase page state. Used for long-polling to keep the page updated.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateStarsBuyState"] },
+          "mode": {
+            "type": "string",
+            "description": "State update mode."
+          },
+          "lv": {
+            "type": "string",
+            "description": "Last version for long-polling."
+          },
+          "dh": {
+            "type": "string",
+            "description": "Data hash for change detection."
+          }
+        },
+        "required": ["method"]
+      },
+      "UpdateStarsPricesRequest": {
+        "type": "object",
+        "description": "Get current pricing for a specific Stars quantity. Returns the TON price and quantity option HTML.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateStarsPrices"] },
+          "stars": {
+            "type": "string",
+            "description": "Number of Stars per unit.",
+            "example": "100"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of units to purchase.",
+            "example": "1"
+          }
+        },
+        "required": ["method"]
+      },
+      "SearchStarsRecipientRequest": {
+        "type": "object",
+        "description": "Search for a Stars gift recipient by Telegram username. Returns the recipient ID needed for initBuyStarsRequest.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchStarsRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Telegram username to search for.",
+            "example": "durov"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of Stars being purchased (affects search context).",
+            "example": "100"
+          }
+        },
+        "required": ["method", "query"]
+      },
+      "InitBuyStarsRequest": {
+        "type": "object",
+        "description": "Create a Stars purchase request. Returns req_id, amount, and display information for the payment popup.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initBuyStarsRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient ID from searchStarsRecipient.",
+            "example": "user_abc123"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of Stars to purchase.",
+            "example": "100"
+          }
+        },
+        "required": ["method", "recipient", "quantity"]
+      },
+      "GetBuyStarsLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a Stars purchase. Uses the req_id from initBuyStarsRequest. The transaction is sent via TonConnect wallet.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getBuyStarsLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initBuyStarsRequest."
+          },
+          "show_sender": {
+            "type": "integer",
+            "description": "Whether to show the sender's identity to the recipient. 1 = show, 0 = anonymous.",
+            "enum": [0, 1],
+            "example": 1
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatStarsRequest": {
+        "type": "object",
+        "description": "Repeat the last Stars purchase with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatStars"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdateStarsRevenueWithdrawalStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Stars revenue withdrawal page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateStarsRevenueWithdrawalState"] },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction identifier for the revenue."
+          },
+          "withdrawal_data": {
+            "type": "string",
+            "description": "JSON-encoded withdrawal configuration data."
+          },
+          "mode": {
+            "type": "string",
+            "description": "State update mode."
+          }
+        },
+        "required": ["method"]
+      },
+      "InitStarsRevenueWithdrawalRequest": {
+        "type": "object",
+        "description": "Create a Stars revenue withdrawal request. Withdraws earned Stars revenue to a TON wallet.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initStarsRevenueWithdrawalRequest"] },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction identifier."
+          },
+          "wallet_address": {
+            "type": "string",
+            "description": "Destination TON wallet address for the withdrawal.",
+            "example": "EQD..."
+          },
+          "withdrawal_data": {
+            "type": "string",
+            "description": "JSON-encoded withdrawal data."
+          },
+          "confirm_hash": {
+            "type": "string",
+            "description": "Two-factor confirmation hash (from email/Telegram 2FA)."
+          }
+        },
+        "required": ["method", "transaction", "wallet_address"]
+      },
+
+      "UpdateStarsGiveawayStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Stars giveaway page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateStarsGiveawayState"] },
+          "mode": { "type": "string" },
+          "lv": { "type": "string" },
+          "dh": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "UpdateStarsGiveawayPricesRequest": {
+        "type": "object",
+        "description": "Get pricing for Stars giveaways. Returns per-user cost and total price.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateStarsGiveawayPrices"] },
+          "quantity": {
+            "type": "string",
+            "description": "Number of giveaway winners.",
+            "example": "10"
+          },
+          "stars": {
+            "type": "string",
+            "description": "Number of Stars per winner.",
+            "example": "100"
+          }
+        },
+        "required": ["method"]
+      },
+      "SearchStarsGiveawayRecipientRequest": {
+        "type": "object",
+        "description": "Search for a Stars giveaway recipient channel/group.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchStarsGiveawayRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Channel/group username to search for."
+          }
+        },
+        "required": ["method", "query"]
+      },
+      "InitGiveawayStarsRequest": {
+        "type": "object",
+        "description": "Create a Stars giveaway request for a channel/group.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initGiveawayStarsRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient channel/group ID."
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of giveaway winners."
+          },
+          "stars": {
+            "type": "string",
+            "description": "Number of Stars per winner."
+          }
+        },
+        "required": ["method", "recipient", "quantity", "stars"]
+      },
+      "GetGiveawayStarsLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a Stars giveaway payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getGiveawayStarsLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initGiveawayStarsRequest."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatStarsGiveawayRequest": {
+        "type": "object",
+        "description": "Repeat the last Stars giveaway with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatStarsGiveaway"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdatePremiumStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Premium gift page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updatePremiumState"] },
+          "mode": { "type": "string" },
+          "lv": { "type": "string" },
+          "dh": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "SearchPremiumGiftRecipientRequest": {
+        "type": "object",
+        "description": "Search for a Telegram Premium gift recipient by username. Returns recipient ID, name, and photo.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchPremiumGiftRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Telegram username to search for.",
+            "example": "durov"
+          },
+          "months": {
+            "type": "string",
+            "description": "Duration of Premium subscription in months.",
+            "enum": ["3", "6", "12"],
+            "example": "3"
+          }
+        },
+        "required": ["method", "query", "months"]
+      },
+      "InitGiftPremiumRequest": {
+        "type": "object",
+        "description": "Create a Telegram Premium gift request. Returns req_id and payment information.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initGiftPremiumRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient ID from searchPremiumGiftRecipient.",
+            "example": "user_abc123"
+          },
+          "months": {
+            "type": "string",
+            "description": "Duration of Premium subscription in months.",
+            "enum": ["3", "6", "12"],
+            "example": "3"
+          }
+        },
+        "required": ["method", "recipient", "months"]
+      },
+      "GetGiftPremiumLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a Premium gift payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getGiftPremiumLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initGiftPremiumRequest."
+          },
+          "show_sender": {
+            "type": "integer",
+            "description": "Whether to show the sender's identity. 1 = show, 0 = anonymous.",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatPremiumRequest": {
+        "type": "object",
+        "description": "Repeat the last Premium gift with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatPremium"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdatePremiumGiveawayStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Premium giveaway page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updatePremiumGiveawayState"] },
+          "mode": { "type": "string" },
+          "lv": { "type": "string" },
+          "dh": { "type": "string" },
+          "quantity": { "type": "string", "description": "Number of giveaway winners." }
+        },
+        "required": ["method"]
+      },
+      "UpdatePremiumGiveawayPricesRequest": {
+        "type": "object",
+        "description": "Get pricing for Premium giveaways. Returns boosts, button label, and quantity options.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updatePremiumGiveawayPrices"] },
+          "quantity": {
+            "type": "string",
+            "description": "Number of giveaway winners.",
+            "example": "10"
+          }
+        },
+        "required": ["method", "quantity"]
+      },
+      "SearchPremiumGiveawayRecipientRequest": {
+        "type": "object",
+        "description": "Search for a Premium giveaway recipient channel/group.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchPremiumGiveawayRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Channel/group username to search for."
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of giveaway winners."
+          },
+          "months": {
+            "type": "string",
+            "description": "Duration of Premium per winner.",
+            "enum": ["3", "6", "12"]
+          }
+        },
+        "required": ["method", "query"]
+      },
+      "InitGiveawayPremiumRequest": {
+        "type": "object",
+        "description": "Create a Premium giveaway request for a channel/group.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initGiveawayPremiumRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient channel/group ID."
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Number of giveaway winners."
+          },
+          "months": {
+            "type": "string",
+            "description": "Duration of Premium per winner.",
+            "enum": ["3", "6", "12"]
+          }
+        },
+        "required": ["method", "recipient", "quantity", "months"]
+      },
+      "GetGiveawayPremiumLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a Premium giveaway payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getGiveawayPremiumLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initGiveawayPremiumRequest."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatPremiumGiveawayRequest": {
+        "type": "object",
+        "description": "Repeat the last Premium giveaway with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatPremiumGiveaway"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdateAdsStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Ads management page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateAdsState"] },
+          "mode": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "UpdateAdsTopupStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Ads top-up (gift to another account) page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateAdsTopupState"] },
+          "mode": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "SearchAdsTopupRecipientRequest": {
+        "type": "object",
+        "description": "Search for an Ads top-up recipient by username or account ID.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchAdsTopupRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Username or account ID to search for."
+          }
+        },
+        "required": ["method", "query"]
+      },
+      "InitAdsTopupRequest": {
+        "type": "object",
+        "description": "Create an Ads top-up request (send funds to another user's ads account).",
+        "properties": {
+          "method": { "type": "string", "enum": ["initAdsTopupRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient ads account ID."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Top-up amount in TON.",
+            "example": "100"
+          }
+        },
+        "required": ["method", "recipient", "amount"]
+      },
+      "GetAdsTopupLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for an Ads top-up payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getAdsTopupLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initAdsTopupRequest."
+          },
+          "show_sender": {
+            "type": "integer",
+            "description": "Whether to show sender identity. 1 = show, 0 = anonymous.",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatAdsTopupRequest": {
+        "type": "object",
+        "description": "Repeat the last Ads top-up with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatAdsTopup"] }
+        },
+        "required": ["method"]
+      },
+      "InitAdsRechargeRequest": {
+        "type": "object",
+        "description": "Create an Ads recharge request (add funds to your own ads account).",
+        "properties": {
+          "method": { "type": "string", "enum": ["initAdsRechargeRequest"] },
+          "account": {
+            "type": "string",
+            "description": "Your ads account ID."
+          },
+          "amount": {
+            "type": "string",
+            "description": "Recharge amount in TON.",
+            "example": "50"
+          }
+        },
+        "required": ["method", "account", "amount"]
+      },
+      "GetAdsRechargeLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for an Ads recharge payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getAdsRechargeLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initAdsRechargeRequest."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatAdsAddFundsRequest": {
+        "type": "object",
+        "description": "Repeat the last Ads recharge with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatAdsAddFunds"] }
+        },
+        "required": ["method"]
+      },
+      "UpdateAdsRevenueWithdrawalStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Ads revenue withdrawal page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateAdsRevenueWithdrawalState"] },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction identifier."
+          },
+          "mode": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "InitAdsRevenueWithdrawalRequest": {
+        "type": "object",
+        "description": "Create an Ads revenue withdrawal request. Withdraws earned ad revenue to a TON wallet. Requires 2FA confirmation.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initAdsRevenueWithdrawalRequest"] },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction identifier for the revenue."
+          },
+          "wallet_address": {
+            "type": "string",
+            "description": "Destination TON wallet address.",
+            "example": "EQD..."
+          },
+          "confirm_hash": {
+            "type": "string",
+            "description": "Two-factor confirmation hash."
+          }
+        },
+        "required": ["method", "transaction", "wallet_address"]
+      },
+
+      "UpdateGatewayRechargeStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the Gateway API credits recharge page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateGatewayRechargeState"] },
+          "mode": { "type": "string" },
+          "account": {
+            "type": "string",
+            "description": "Gateway account ID."
+          },
+          "credits": {
+            "type": "string",
+            "description": "Number of credits."
+          }
+        },
+        "required": ["method"]
+      },
+      "UpdateGatewayPricesRequest": {
+        "type": "object",
+        "description": "Get current pricing for Gateway API credits.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateGatewayPrices"] },
+          "account": {
+            "type": "string",
+            "description": "Gateway account ID."
+          },
+          "credits": {
+            "type": "string",
+            "description": "Number of credits to price."
+          }
+        },
+        "required": ["method"]
+      },
+      "InitGatewayRechargeRequest": {
+        "type": "object",
+        "description": "Create a Gateway API credits recharge request.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initGatewayRechargeRequest"] },
+          "account": {
+            "type": "string",
+            "description": "Gateway account ID."
+          },
+          "credits": {
+            "type": "string",
+            "description": "Number of credits to purchase."
+          }
+        },
+        "required": ["method", "account", "credits"]
+      },
+      "GetGatewayRechargeLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for a Gateway recharge payment.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getGatewayRechargeLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initGatewayRechargeRequest."
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "RepeatGatewayAddFundsRequest": {
+        "type": "object",
+        "description": "Repeat the last Gateway recharge with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatGatewayAddFunds"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdateNftTransferStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the NFT transfer page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateNftTransferState"] },
+          "mode": { "type": "string" },
+          "slug": {
+            "type": "string",
+            "description": "NFT slug/identifier."
+          }
+        },
+        "required": ["method"]
+      },
+      "SearchNftTransferRecipientRequest": {
+        "type": "object",
+        "description": "Search for an NFT transfer recipient by Telegram username.",
+        "properties": {
+          "method": { "type": "string", "enum": ["searchNftTransferRecipient"] },
+          "query": {
+            "type": "string",
+            "description": "Telegram username to search for."
+          }
+        },
+        "required": ["method", "query"]
+      },
+      "InitNftTransferRequest": {
+        "type": "object",
+        "description": "Create an NFT transfer request to send a collectible to another user.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initNftTransferRequest"] },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient ID from searchNftTransferRecipient."
+          },
+          "slug": {
+            "type": "string",
+            "description": "NFT slug/identifier to transfer."
+          }
+        },
+        "required": ["method", "recipient", "slug"]
+      },
+      "GetNftTransferLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data for an NFT transfer.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getNftTransferLink"] },
+          "id": {
+            "type": "string",
+            "description": "Request ID from initNftTransferRequest."
+          },
+          "show_sender": {
+            "type": "integer",
+            "description": "Whether to show sender identity. 1 = show, 0 = anonymous.",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "id"]
+      },
+      "UpdateNftWithdrawalStateRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the NFT withdrawal (to external wallet) page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateNftWithdrawalState"] },
+          "transaction": { "type": "string" },
+          "mode": { "type": "string" }
+        },
+        "required": ["method"]
+      },
+      "InitNftWithdrawalRequest": {
+        "type": "object",
+        "description": "Create an NFT withdrawal request to send a collectible to an external TON wallet. Requires 2FA confirmation.",
+        "properties": {
+          "method": { "type": "string", "enum": ["initNftWithdrawalRequest"] },
+          "transaction": {
+            "type": "string",
+            "description": "Transaction identifier for the NFT."
+          },
+          "wallet_address": {
+            "type": "string",
+            "description": "Destination TON wallet address.",
+            "example": "EQD..."
+          },
+          "keep_gift": {
+            "type": "integer",
+            "description": "Whether to keep the gift appearance on the NFT. 1 = keep, 0 = remove.",
+            "enum": [0, 1]
+          },
+          "confirm_hash": {
+            "type": "string",
+            "description": "Two-factor confirmation hash."
+          }
+        },
+        "required": ["method", "transaction", "wallet_address"]
+      },
+
+      "UpdateRandomRequest": {
+        "type": "object",
+        "description": "Initialize or refresh the random number generator page state.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateRandom"] }
+        },
+        "required": ["method"]
+      },
+      "GetRandomNumberLinkRequest": {
+        "type": "object",
+        "description": "Get TON transaction data to generate a provably fair random number on the blockchain.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getRandomNumberLink"] }
+        },
+        "required": ["method"]
+      },
+      "RepeatRandomRequest": {
+        "type": "object",
+        "description": "Generate another random number with the same parameters.",
+        "properties": {
+          "method": { "type": "string", "enum": ["repeatRandom"] }
+        },
+        "required": ["method"]
+      },
+
+      "UpdateLoginCodesRequest": {
+        "type": "object",
+        "description": "Get the current state of login code forwarding for a phone number.",
+        "properties": {
+          "method": { "type": "string", "enum": ["updateLoginCodes"] },
+          "number": {
+            "type": "string",
+            "description": "Phone number to manage login codes for."
+          },
+          "lt": {
+            "type": "string",
+            "description": "Last update timestamp."
+          },
+          "from_app": {
+            "type": "string",
+            "description": "Source application identifier."
+          }
+        },
+        "required": ["method", "number"]
+      },
+      "ToggleLoginCodesRequest": {
+        "type": "object",
+        "description": "Enable or disable login code forwarding for a phone number.",
+        "properties": {
+          "method": { "type": "string", "enum": ["toggleLoginCodes"] },
+          "number": {
+            "type": "string",
+            "description": "Phone number to toggle."
+          },
+          "can_receive": {
+            "type": "integer",
+            "description": "1 = enable code forwarding, 0 = disable.",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["method", "number", "can_receive"]
+      },
+      "TerminatePhoneSessionsRequest": {
+        "type": "object",
+        "description": "Terminate all Telegram sessions for a phone number (security action).",
+        "properties": {
+          "method": { "type": "string", "enum": ["terminatePhoneSessions"] },
+          "number": {
+            "type": "string",
+            "description": "Phone number whose sessions to terminate."
+          },
+          "terminate_hash": {
+            "type": "string",
+            "description": "Security hash for confirming the termination."
+          }
+        },
+        "required": ["method", "number", "terminate_hash"]
+      },
+
+      "VerifyWalletRequest": {
+        "type": "object",
+        "description": "Verify the connected TON wallet ownership.",
+        "properties": {
+          "method": { "type": "string", "enum": ["verifyWallet"] }
+        },
+        "required": ["method"]
+      },
+      "KycGetTokenRequest": {
+        "type": "object",
+        "description": "Get a SumSub KYC verification token. Returns a new_token to initialize the SumSub SDK.",
+        "properties": {
+          "method": { "type": "string", "enum": ["kycGetToken"] }
+        },
+        "required": ["method"]
+      },
+      "KycUpdateStatusRequest": {
+        "type": "object",
+        "description": "Update the KYC verification status after SumSub verification completes.",
+        "properties": {
+          "method": { "type": "string", "enum": ["kycUpdateStatus"] },
+          "payload": {
+            "type": "string",
+            "description": "JSON-encoded payload from SumSub SDK callback."
+          }
+        },
+        "required": ["method", "payload"]
+      },
+      "CheckWalletRequest": {
+        "type": "object",
+        "description": "Check the current wallet connection status.",
+        "properties": {
+          "method": { "type": "string", "enum": ["checkWallet"] }
+        },
+        "required": ["method"]
+      },
+      "LinkWalletRequest": {
+        "type": "object",
+        "description": "Link the connected TON wallet to the Fragment account.",
+        "properties": {
+          "method": { "type": "string", "enum": ["linkWallet"] }
+        },
+        "required": ["method"]
+      },
+
+      "TonTerminateSessionRequest": {
+        "type": "object",
+        "description": "Terminate a specific TON wallet session.",
+        "properties": {
+          "method": { "type": "string", "enum": ["tonTerminateSession"] },
+          "session_id": {
+            "type": "string",
+            "description": "The session ID to terminate."
+          }
+        },
+        "required": ["method", "session_id"]
+      },
+
+      "GetBidsHistoryRequest": {
+        "type": "object",
+        "description": "Get the user's bid history with pagination.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getBidsHistory"] },
+          "type": {
+            "type": "string",
+            "description": "Filter by item type."
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID."
+          }
+        },
+        "required": ["method"]
+      },
+      "GetPremiumHistoryRequest": {
+        "type": "object",
+        "description": "Get the user's Premium gift/giveaway history with pagination.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getPremiumHistory"] },
+          "type": {
+            "type": "string",
+            "description": "Filter by history type."
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID."
+          }
+        },
+        "required": ["method"]
+      },
+      "GetOrdersHistoryRequest": {
+        "type": "object",
+        "description": "Get the user's order history with pagination.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getOrdersHistory"] },
+          "type": {
+            "type": "string",
+            "description": "Filter by order type."
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID."
+          }
+        },
+        "required": ["method"]
+      },
+      "GetOwnersHistoryRequest": {
+        "type": "object",
+        "description": "Get the ownership history for an item.",
+        "properties": {
+          "method": { "type": "string", "enum": ["getOwnersHistory"] },
+          "type": {
+            "type": "string",
+            "description": "Item type."
+          },
+          "offset_id": {
+            "type": "string",
+            "description": "Pagination offset ID."
+          }
+        },
+        "required": ["method"]
+      }
+    }
+  }
+}
