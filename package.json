@@ -1,0 +1,44 @@
+{
+  "name": "fragment.js",
+  "version": "1.0.0",
+  "description": "JavaScript SDK for Fragment.com — Telegram Stars, Premium, Ads, Auctions, NFTs, and more",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "node --test test/**/*.test.js test/*.test.js",
+    "test:verbose": "node --test --test-reporter=spec test/**/*.test.js test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n0/fragment-sdk.git"
+  },
+  "homepage": "https://github.com/n0/fragment-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/n0/fragment-sdk/issues"
+  },
+  "keywords": [
+    "fragment",
+    "telegram",
+    "ton",
+    "stars",
+    "premium",
+    "nft",
+    "auction",
+    "ads",
+    "gateway",
+    "username",
+    "collectible",
+    "sdk"
+  ],
+  "license": "MIT"
+}

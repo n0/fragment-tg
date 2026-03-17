@@ -1,0 +1,17 @@
+node_modules/
+bun.lock
+.env
+.env.*
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+dist/
