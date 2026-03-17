@@ -20,11 +20,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/n0/fragment-sdk.git"
+    "url": "git+https://github.com/n0/fragment-tg.git"
   },
-  "homepage": "https://github.com/n0/fragment-sdk#readme",
+  "homepage": "https://github.com/n0/fragment-tg#readme",
   "bugs": {
-    "url": "https://github.com/n0/fragment-sdk/issues"
+    "url": "https://github.com/n0/fragment-tg/issues"
   },
   "keywords": [
     "fragment",
