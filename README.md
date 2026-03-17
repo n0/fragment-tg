@@ -115,6 +115,10 @@ Call any Fragment API method directly:
 const result = await fragment.call('someNewMethod', { param: 'value' });
 ```
 
+## API Spec
+
+Full OpenAPI/Swagger spec for Fragment's API is included: [`swagger.json`](./swagger.json)
+
 ## Documentation
 
 | Guide | Description |
@@ -124,6 +128,7 @@ const result = await fragment.call('someNewMethod', { param: 'value' });
 | [Payments](./docs/payments.md) | How payment flows work, all payment methods |
 | [Services](./docs/services.md) | Full API reference for all 16 services |
 | [Error Handling](./docs/errors.md) | Error types and handling patterns |
+| [swagger.json](./swagger.json) | Full OpenAPI spec for Fragment's API |
 
 ## Examples
 
