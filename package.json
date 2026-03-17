@@ -1,5 +1,5 @@
 {
-  "name": "fragment-sdk",
+  "name": "fragment-tg",
   "version": "1.0.0",
   "description": "JavaScript SDK for Fragment.com — Telegram Stars, Premium, Ads, Auctions, NFTs, and more",
   "type": "module",
