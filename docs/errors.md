@@ -3,7 +3,7 @@
 ## Error Types
 
 ```js
-import { FragmentError, AuthError, HashExpiredError } from 'fragment.js';
+import { FragmentError, AuthError, HashExpiredError } from 'fragment-tg';
 ```
 
 ### `FragmentError`

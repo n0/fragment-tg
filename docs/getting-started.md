@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-npm install fragment.js
+npm install fragment-tg
 ```
 
 Requires Node.js 18+ (uses built-in `fetch`).
@@ -11,7 +11,7 @@ Requires Node.js 18+ (uses built-in `fetch`).
 ## Basic Setup
 
 ```js
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

@@ -16,7 +16,7 @@ Fragment uses four cookies for session management. This guide covers every way t
 If you already have cookies (from a browser session or a previous login):
 
 ```js
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {
@@ -61,7 +61,7 @@ console.log(result.cookies);    // save these for reuse
 For more control over the Telegram OAuth flow:
 
 ```js
-import { startTelegramOAuth, pollTelegramOAuth, completeTelegramOAuth } from 'fragment.js';
+import { startTelegramOAuth, pollTelegramOAuth, completeTelegramOAuth } from 'fragment-tg';
 
 // Step 1: Send login request to the phone
 const session = await startTelegramOAuth('+1234567890');

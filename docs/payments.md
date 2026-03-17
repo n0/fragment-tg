@@ -19,7 +19,7 @@ The SDK never touches your private keys.
 Payment methods require a TonConnect identity in the constructor:
 
 ```js
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: { /* ... */ },
@@ -143,7 +143,7 @@ These don't require TonConnect or wallet signing:
 ## Error Handling
 
 ```js
-import { FragmentError, AuthError } from 'fragment.js';
+import { FragmentError, AuthError } from 'fragment-tg';
 
 try {
   const tx = await fragment.buyStars('nobody', 100);

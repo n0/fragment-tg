@@ -1,7 +1,7 @@
 /**
  * List and manage owned usernames/numbers.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

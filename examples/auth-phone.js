@@ -3,7 +3,7 @@
  *
  * The only manual step is the user tapping "Confirm" in their Telegram app.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: { stel_dt: '-240' },

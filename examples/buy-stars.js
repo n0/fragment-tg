@@ -4,7 +4,7 @@
  * The SDK handles the Fragment API side. You sign the transaction
  * externally with your own wallet, then confirm.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

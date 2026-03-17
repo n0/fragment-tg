@@ -1,7 +1,7 @@
 /**
  * Search Fragment auctions — no wallet needed.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

@@ -1,7 +1,7 @@
 /**
  * Make raw API calls to Fragment for methods not covered by services.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

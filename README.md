@@ -1,4 +1,4 @@
-# fragment.js
+# fragment-tg
 
 The JavaScript SDK for [Fragment.com](https://fragment.com).
 
@@ -9,7 +9,7 @@ Zero dependencies. Works with any TON wallet.
 ## Install
 
 ```bash
-npm install fragment.js
+npm install fragment-tg
 ```
 
 > Node.js 18+
@@ -17,7 +17,7 @@ npm install fragment.js
 ## Usage
 
 ```js
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {

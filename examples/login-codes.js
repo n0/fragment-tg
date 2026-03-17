@@ -1,7 +1,7 @@
 /**
  * Read login codes and manage sessions for owned phone numbers.
  */
-import { Fragment } from 'fragment.js';
+import { Fragment } from 'fragment-tg';
 
 const fragment = new Fragment({
   cookies: {
