@@ -6,11 +6,17 @@ export class WalletApiService extends BaseService {
   }
 
   async checkWallet() {
-    return this.call('checkWallet');
+    return this.call('checkWallet', {
+      account: this._requireAccount(),
+      device: this._requireDevice(),
+    });
   }
 
   async linkWallet() {
-    return this.call('linkWallet');
+    return this.call('linkWallet', {
+      account: this._requireAccount(),
+      device: this._requireDevice(),
+    });
   }
 
   async kycGetToken() {
